@@ -1,0 +1,77 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # Allows manual trigger from GitHub UI
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.16.0'
+        channel: 'stable'
+        
+    - name: Install dependencies
+      run: flutter pub get
+      
+    - name: Setup iOS dependencies
+      run: |
+        cd ios
+        pod install
+        cd ..
+        
+    - name: Build iOS (Debug - No Signing)
+      run: |
+        flutter build ios --debug --no-codesign
+        
+    - name: Create IPA Archive
+      run: |
+        cd build/ios/iphoneos
+        mkdir -p Payload
+        cp -R Runner.app Payload/
+        zip -r BiasAI-Debug.ipa Payload/
+        
+    - name: Upload IPA as Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: BiasAI-iOS-Debug
+        path: build/ios/iphoneos/BiasAI-Debug.ipa
+        retention-days: 30
+        
+    - name: Create Release (Optional)
+      if: github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: latest-ios
+        name: Latest iOS Build
+        body: |
+          📱 **Bias AI Demo - iOS Build**
+          
+          **Installation Instructions:**
+          1. Download `BiasAI-Debug.ipa` 
+          2. Install using one of these methods:
+             - **AltStore** (recommended): https://altstore.io
+             - **Sideloadly**: https://sideloadly.io  
+             - **3uTools**: https://www.3u.com
+          3. Trust the developer certificate in Settings > General > VPN & Device Management
+          
+          **Features:**
+          - Full glassmorphic design
+          - Market bias analysis demo
+          - Smooth animations and transitions
+          - Works offline after installation
+          
+          Built from commit: ${{ github.sha }}
+        files: |
+          build/ios/iphoneos/BiasAI-Debug.ipa
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
